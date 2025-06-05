@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import itertools
-from sklearn.linear_model import LinearRegression
 import altair as alt
 
 # Define atributos do Conjoint
@@ -33,31 +32,27 @@ for i, row in df_profiles.iterrows():
         if st.checkbox(f"Selecionar esta combinação", key=row['ID']):
             selected_ids.append(row['ID'])
 
-# Rodar análise de regressão
+# Rodar análise simples de preferência
 if selected_ids:
-    st.subheader("2. Resultados da Análise")
+    st.subheader("2. Resultados da Análise de Preferência")
     df_profiles['Escolhido'] = df_profiles['ID'].apply(lambda x: 1 if x in selected_ids else 0)
 
-    # One-hot encoding
-    df_encoded = pd.get_dummies(df_profiles.drop(columns=['ID']), drop_first=True)
+    # Cálculo de importância relativa por atributo (baseado em freqüência nos selecionados)
+    importance = {}
+    for col in ['Marca', 'Dosagem', 'Preço', 'Quantidade']:
+        counts = df_profiles[df_profiles['Escolhido'] == 1][col].value_counts(normalize=True) - df_profiles[col].value_counts(normalize=True)
+        importance[col] = counts.fillna(0)
 
-    X = df_encoded.drop(columns=['Escolhido'])
-    y = df_encoded['Escolhido']
+    importance_df = pd.concat(importance).reset_index()
+    importance_df.columns = ['Atributo', 'Valor', 'Importância']
 
-    model = LinearRegression()
-    model.fit(X, y)
-    importances = pd.DataFrame({
-        'Atributo': X.columns,
-        'Importância': model.coef_
-    }).sort_values(by='Importância', ascending=False)
-
-    chart = alt.Chart(importances).mark_bar().encode(
+    chart = alt.Chart(importance_df).mark_bar().encode(
         x=alt.X('Importância:Q'),
-        y=alt.Y('Atributo:N', sort='-x')
-    ).properties(title="Importância dos Atributos na Escolha")
+        y=alt.Y('Valor:N', sort='-x'),
+        color='Atributo:N'
+    ).properties(title="Importância Relativa dos Atributos na Escolha")
 
     st.altair_chart(chart, use_container_width=True)
-    st.dataframe(importances)
-
+    st.dataframe(importance_df)
 else:
     st.info("Selecione pelo menos uma opção para ver os resultados.")
