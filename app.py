@@ -1,58 +1,83 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import itertools
 import altair as alt
 
-# Define atributos do Conjoint
-brands = ['Genérico', 'Atenta', 'Juneve', 'Venvanse']
-dosages = ['30mg', '50mg', '70mg']
-prices = ['R$100', 'R$150', 'R$200']
-quantities = ['30 comprimidos', '60 comprimidos']
+st.set_page_config(layout="wide")
 
-# Gerar combinações
-profiles = list(itertools.product(brands, dosages, prices, quantities))
-
-# Criar DataFrame de perfis
-columns = ['Marca', 'Dosagem', 'Preço', 'Quantidade']
-df_profiles = pd.DataFrame(profiles, columns=columns)
-df_profiles['ID'] = range(1, len(df_profiles) + 1)
-
-# Interface Streamlit
 st.title("Simulador de Conjoint para Medicamentos TDAH")
 
-st.write("Avalie diferentes combinações de medicamentos e veja o impacto nas preferências dos consumidores.")
+st.write("Compare dois cenários de medicamentos e veja o impacto nas escolhas dos consumidores com base em um estudo fictício completo.")
 
-st.subheader("1. Escolha os perfis que você prefere")
+# Dados simulados de coeficientes do estudo (valores fictícios)
+marca_impact = {'Genérico': -0.2, 'Atenta': 0.1, 'Juneve': 0.15, 'Venvanse': 0.3}
+dosagem_impact = {'30mg': -0.1, '50mg': 0.0, '70mg': 0.2}
+preco_impact = {'R$100': 0.2, 'R$150': 0.0, 'R$200': -0.2}
+quantidade_impact = {'30 comprimidos': -0.1, '60 comprimidos': 0.1}
 
-# Mostrar opções
-selected_ids = []
-for i, row in df_profiles.iterrows():
-    with st.expander(f"Opção {row['ID']}: {row['Marca']}, {row['Dosagem']}, {row['Preço']}, {row['Quantidade']}"):
-        if st.checkbox(f"Selecionar esta combinação", key=row['ID']):
-            selected_ids.append(row['ID'])
+st.subheader("1. Selecione as combinações a serem comparadas")
 
-# Rodar análise simples de preferência
-if selected_ids:
-    st.subheader("2. Resultados da Análise de Preferência")
-    df_profiles['Escolhido'] = df_profiles['ID'].apply(lambda x: 1 if x in selected_ids else 0)
+col1, col2 = st.columns(2)
 
-    # Cálculo de importância relativa por atributo (baseado em freqüência nos selecionados)
-    importance = {}
-    for col in ['Marca', 'Dosagem', 'Preço', 'Quantidade']:
-        counts = df_profiles[df_profiles['Escolhido'] == 1][col].value_counts(normalize=True) - df_profiles[col].value_counts(normalize=True)
-        importance[col] = counts.fillna(0)
+with col1:
+    st.markdown("**Opção A**")
+    marca_a = st.selectbox("Marca", list(marca_impact.keys()), key="a_marca")
+    dosagem_a = st.selectbox("Dosagem", list(dosagem_impact.keys()), key="a_dosagem")
+    preco_a = st.selectbox("Preço", list(preco_impact.keys()), key="a_preco")
+    quantidade_a = st.selectbox("Quantidade", list(quantidade_impact.keys()), key="a_quantidade")
 
-    importance_df = pd.concat(importance).reset_index()
-    importance_df.columns = ['Atributo', 'Valor', 'Importância']
+with col2:
+    st.markdown("**Opção B**")
+    marca_b = st.selectbox("Marca", list(marca_impact.keys()), key="b_marca")
+    dosagem_b = st.selectbox("Dosagem", list(dosagem_impact.keys()), key="b_dosagem")
+    preco_b = st.selectbox("Preço", list(preco_impact.keys()), key="b_preco")
+    quantidade_b = st.selectbox("Quantidade", list(quantidade_impact.keys()), key="b_quantidade")
 
-    chart = alt.Chart(importance_df).mark_bar().encode(
-        x=alt.X('Importância:Q'),
-        y=alt.Y('Valor:N', sort='-x'),
-        color='Atributo:N'
-    ).properties(title="Importância Relativa dos Atributos na Escolha")
+# Cálculo de score baseado no modelo fictício
+score_a = sum([
+    marca_impact[marca_a],
+    dosagem_impact[dosagem_a],
+    preco_impact[preco_a],
+    quantidade_impact[quantidade_a]
+])
 
-    st.altair_chart(chart, use_container_width=True)
-    st.dataframe(importance_df)
-else:
-    st.info("Selecione pelo menos uma opção para ver os resultados.")
+score_b = sum([
+    marca_impact[marca_b],
+    dosagem_impact[dosagem_b],
+    preco_impact[preco_b],
+    quantidade_impact[quantidade_b]
+])
+
+# Resultado
+st.subheader("2. Preferência Estimada")
+
+result_df = pd.DataFrame({
+    'Opção': ['A', 'B'],
+    'Score Estimado': [score_a, score_b]
+})
+
+bar_chart = alt.Chart(result_df).mark_bar().encode(
+    x='Opção:N',
+    y='Score Estimado:Q',
+    color='Opção:N'
+).properties(title="Probabilidade Estimada de Escolha")
+
+st.altair_chart(bar_chart, use_container_width=True)
+st.dataframe(result_df)
+
+# Simulação de curva de demanda
+st.subheader("3. Curva de Preço Ideal (Simulada)")
+precos = [100, 120, 140, 160, 180, 200, 220]
+demanda = [95, 90, 80, 65, 50, 35, 20]
+
+curva_df = pd.DataFrame({
+    'Preço (R$)': precos,
+    'Demanda Estimada (%)': demanda
+})
+
+curva_chart = alt.Chart(curva_df).mark_line(point=True).encode(
+    x='Preço (R$):Q',
+    y='Demanda Estimada (%):Q'
+).properties(title="Curva de Demanda x Preço")
+
+st.altair_chart(curva_chart, use_container_width=True)
